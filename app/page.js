@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
+import jsPDF from "jspdf";
 
 import {
   collection,
@@ -13,6 +14,13 @@ import {
 } from "firebase/firestore";
 
 import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from "firebase/auth";
+
+import {
   Users,
   BookOpen,
   DollarSign,
@@ -22,6 +30,10 @@ import {
 } from "lucide-react";
 
 export default function Home() {
+  const [usuario, setUsuario] = useState(null);
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+
   const [nome, setNome] = useState("");
   const [turmaAluno, setTurmaAluno] = useState("");
   const [alunos, setAlunos] = useState([]);
@@ -35,6 +47,18 @@ export default function Home() {
   const [editandoId, setEditandoId] = useState(null);
   const [nomeEditado, setNomeEditado] = useState("");
   const [turmaEditada, setTurmaEditada] = useState("");
+
+  async function criarConta() {
+    await createUserWithEmailAndPassword(auth, email, senha);
+  }
+
+  async function entrar() {
+    await signInWithEmailAndPassword(auth, email, senha);
+  }
+
+  async function sair() {
+    await signOut(auth);
+  }
 
   async function salvarAluno() {
     if (!nome || !turmaAluno) {
@@ -188,13 +212,78 @@ export default function Home() {
     await deleteDoc(doc(db, "mensalidades", id));
     carregarMensalidades();
   }
+function gerarRecibo(mensalidade) {
+  const docPDF = new jsPDF();
 
+  docPDF.setFontSize(18);
+  docPDF.text("Recibo de Pagamento", 20, 20);
+
+  docPDF.setFontSize(12);
+  docPDF.text(`Aluno: ${mensalidade.alunoNome}`, 20, 40);
+  docPDF.text(`Turma: ${mensalidade.turma}`, 20, 50);
+  docPDF.text(`Valor: R$ ${mensalidade.valor}`, 20, 60);
+  docPDF.text(`Status: ${mensalidade.status}`, 20, 70);
+  docPDF.text(`Data: ${mensalidade.data}`, 20, 80);
+
+  docPDF.text("Escolinha de Natação & Hidro", 20, 110);
+  docPDF.text("Documento gerado automaticamente pelo sistema.", 20, 120);
+
+  docPDF.save(`recibo-${mensalidade.alunoNome}.pdf`);
+}
   useEffect(() => {
-    carregarAlunos();
-    carregarTurmas();
-    carregarPresencas();
-    carregarMensalidades();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUsuario(user);
+
+      if (user) {
+        carregarAlunos();
+        carregarTurmas();
+        carregarPresencas();
+        carregarMensalidades();
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  if (!usuario) {
+    return (
+      <div className="min-h-screen bg-gray-200 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+            Escolinha App
+          </h1>
+
+          <input
+            className="border border-gray-300 p-3 rounded-lg w-full text-black bg-white mb-3"
+            type="email"
+            placeholder="Email"
+            onChange={(e) => setEmail(e.target.value)}
+          />
+
+          <input
+            className="border border-gray-300 p-3 rounded-lg w-full text-black bg-white mb-4"
+            type="password"
+            placeholder="Senha"
+            onChange={(e) => setSenha(e.target.value)}
+          />
+
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white w-full p-3 rounded-lg mb-3"
+            onClick={entrar}
+          >
+            Entrar
+          </button>
+
+          <button
+            className="bg-green-600 hover:bg-green-700 text-white w-full p-3 rounded-lg"
+            onClick={criarConta}
+          >
+            Criar Conta
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-200 flex">
@@ -233,9 +322,18 @@ export default function Home() {
 
       <main className="flex-1 p-8 md:ml-64">
         <section id="dashboard">
-          <h1 className="text-4xl font-bold mb-8 text-gray-900">
-            Dashboard Escolinha
-          </h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-900">
+              Dashboard Escolinha
+            </h1>
+
+            <button
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
+              onClick={sair}
+            >
+              Sair
+            </button>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
             <div className="bg-white p-6 rounded-2xl shadow-lg">
@@ -283,7 +381,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-6">
             <input
-              className="border border-gray-300 p-3 rounded-lg w-full text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 p-3 rounded-lg w-full text-black bg-white"
               type="text"
               placeholder="Nome do aluno"
               value={nome}
@@ -291,7 +389,7 @@ export default function Home() {
             />
 
             <select
-              className="border border-gray-300 p-3 rounded-lg w-full text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 p-3 rounded-lg w-full text-black bg-white"
               value={turmaAluno}
               onChange={(e) => setTurmaAluno(e.target.value)}
             >
@@ -305,7 +403,7 @@ export default function Home() {
             </select>
 
             <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 rounded-lg font-medium transition"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 rounded-lg font-medium"
               onClick={salvarAluno}
             >
               Salvar
@@ -361,7 +459,7 @@ export default function Home() {
 
                 <div className="flex flex-wrap gap-2">
                   <button
-                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition"
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg"
                     onClick={() => {
                       setEditandoId(aluno.id);
                       setNomeEditado(aluno.nome);
@@ -372,28 +470,28 @@ export default function Home() {
                   </button>
 
                   <button
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition"
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
                     onClick={() => marcarPresenca(aluno, "Presente")}
                   >
                     Presente
                   </button>
 
                   <button
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition"
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg"
                     onClick={() => marcarPresenca(aluno, "Faltou")}
                   >
                     Faltou
                   </button>
 
                   <button
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition"
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg"
                     onClick={() => gerarMensalidade(aluno)}
                   >
                     Mensalidade
                   </button>
 
                   <button
-                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
                     onClick={() => excluirAluno(aluno.id)}
                   >
                     Excluir
@@ -411,7 +509,7 @@ export default function Home() {
 
           <div className="flex gap-2 mb-6">
             <input
-              className="border border-gray-300 p-3 rounded-lg w-full text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 p-3 rounded-lg w-full text-black bg-white"
               type="text"
               placeholder="Nome da turma"
               value={nomeTurma}
@@ -419,7 +517,7 @@ export default function Home() {
             />
 
             <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 rounded-lg font-medium transition"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 rounded-lg font-medium"
               onClick={salvarTurma}
             >
               Salvar
@@ -437,7 +535,7 @@ export default function Home() {
                 </span>
 
                 <button
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
                   onClick={() => excluirTurma(turma.id)}
                 >
                   Excluir
@@ -469,13 +567,7 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 items-center">
-                  <span
-                    className={`font-bold ${
-                      presenca.status === "Presente"
-                        ? "text-green-700"
-                        : "text-red-700"
-                    }`}
-                  >
+                  <span className={`font-bold ${presenca.status === "Presente" ? "text-green-700" : "text-red-700"}`}>
                     {presenca.status}
                   </span>
 
@@ -521,13 +613,7 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 items-center">
-                  <span
-                    className={`font-bold ${
-                      mensalidade.status === "Pago"
-                        ? "text-green-700"
-                        : "text-red-700"
-                    }`}
-                  >
+                  <span className={`font-bold ${mensalidade.status === "Pago" ? "text-green-700" : "text-red-700"}`}>
                     {mensalidade.status}
                   </span>
 
@@ -539,7 +625,12 @@ export default function Home() {
                       Marcar Pago
                     </button>
                   )}
-
+<button
+  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg"
+  onClick={() => gerarRecibo(mensalidade)}
+>
+  Recibo PDF
+</button>
                   <button
                     className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg"
                     onClick={() => excluirMensalidade(mensalidade.id)}
