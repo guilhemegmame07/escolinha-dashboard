@@ -5,6 +5,14 @@ import { db, auth } from "../firebase";
 import jsPDF from "jspdf";
 
 import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
+
+import {
   collection,
   addDoc,
   getDocs,
@@ -212,24 +220,26 @@ export default function Home() {
     await deleteDoc(doc(db, "mensalidades", id));
     carregarMensalidades();
   }
-function gerarRecibo(mensalidade) {
-  const docPDF = new jsPDF();
 
-  docPDF.setFontSize(18);
-  docPDF.text("Recibo de Pagamento", 20, 20);
+  function gerarRecibo(mensalidade) {
+    const docPDF = new jsPDF();
 
-  docPDF.setFontSize(12);
-  docPDF.text(`Aluno: ${mensalidade.alunoNome}`, 20, 40);
-  docPDF.text(`Turma: ${mensalidade.turma}`, 20, 50);
-  docPDF.text(`Valor: R$ ${mensalidade.valor}`, 20, 60);
-  docPDF.text(`Status: ${mensalidade.status}`, 20, 70);
-  docPDF.text(`Data: ${mensalidade.data}`, 20, 80);
+    docPDF.setFontSize(18);
+    docPDF.text("Recibo de Pagamento", 20, 20);
 
-  docPDF.text("Escolinha de Natação & Hidro", 20, 110);
-  docPDF.text("Documento gerado automaticamente pelo sistema.", 20, 120);
+    docPDF.setFontSize(12);
+    docPDF.text(`Aluno: ${mensalidade.alunoNome}`, 20, 40);
+    docPDF.text(`Turma: ${mensalidade.turma}`, 20, 50);
+    docPDF.text(`Valor: R$ ${mensalidade.valor}`, 20, 60);
+    docPDF.text(`Status: ${mensalidade.status}`, 20, 70);
+    docPDF.text(`Data: ${mensalidade.data}`, 20, 80);
 
-  docPDF.save(`recibo-${mensalidade.alunoNome}.pdf`);
-}
+    docPDF.text("Escolinha de Natação & Hidro", 20, 110);
+    docPDF.text("Documento gerado automaticamente pelo sistema.", 20, 120);
+
+    docPDF.save(`recibo-${mensalidade.alunoNome}.pdf`);
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUsuario(user);
@@ -244,6 +254,19 @@ function gerarRecibo(mensalidade) {
 
     return () => unsubscribe();
   }, []);
+
+  const dadosFinanceiros = [
+    {
+      name: "Pagos",
+      value: mensalidades.filter((m) => m.status === "Pago").length
+    },
+    {
+      name: "Pendentes",
+      value: mensalidades.filter((m) => m.status === "Pendente").length
+    }
+  ];
+
+  const COLORS = ["#16a34a", "#dc2626"];
 
   if (!usuario) {
     return (
@@ -370,6 +393,36 @@ function gerarRecibo(mensalidade) {
                   </h2>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-2xl shadow-lg mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Resumo Financeiro
+            </h2>
+
+            <div className="w-full h-80">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={dadosFinanceiros}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    dataKey="value"
+                    label
+                  >
+                    {dadosFinanceiros.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </section>
@@ -625,12 +678,14 @@ function gerarRecibo(mensalidade) {
                       Marcar Pago
                     </button>
                   )}
-<button
-  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg"
-  onClick={() => gerarRecibo(mensalidade)}
->
-  Recibo PDF
-</button>
+
+                  <button
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg"
+                    onClick={() => gerarRecibo(mensalidade)}
+                  >
+                    Recibo PDF
+                  </button>
+
                   <button
                     className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg"
                     onClick={() => excluirMensalidade(mensalidade.id)}
